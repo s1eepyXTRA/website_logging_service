@@ -8,12 +8,12 @@ Real-time аналитический пайплайн для интернет-м
 
 ```mermaid
 flowchart LR
-    Generator["Generator\n(Python)"] -->|events| Kafka["Kafka\n(KRaft)"]
+    Generator["Generator<br/>(Python)"] -->|events| Kafka["Kafka<br/>(KRaft)"]
     Kafka -->|raw_events| Vector
     Vector -->|HTTP insert| ClickHouse
     Vector -->|metrics :9598| Prometheus
-    Prometheus --> Grafana["Grafana\n(мониторинг)"]
-    ClickHouse --> Superset["Superset\n(BI-дашборды)"]
+    Prometheus --> Grafana["Grafana<br/>(мониторинг)"]
+    ClickHouse --> Superset["Superset<br/>(BI-дашборды)"]
 ```
 
 ### Поток данных
@@ -21,20 +21,20 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph Генерация
-        G[Generator] -->|JSON events| K[Kafka topic: raw_events\n3 партиции]
+        G[Generator] -->|JSON events| K[Kafka topic: raw_events<br/>3 партиции]
     end
 
     subgraph ETL
         K --> V[Vector]
         V -->|валидация| V1{Событие валидно?}
-        V1 -->|да| V2[Обогащение\nprocessed_at, defaults]
+        V1 -->|да| V2[Обогащение<br/>processed_at, defaults]
         V1 -->|нет| DROP[Drop]
-        V2 --> CH_SINK[ClickHouse sink\nbatch 1MB / 5s]
-        V2 --> PROM_SINK[Prometheus exporter\n:9598]
+        V2 --> CH_SINK[ClickHouse sink<br/>batch 1MB / 5s]
+        V2 --> PROM_SINK[Prometheus exporter<br/>:9598]
     end
 
     subgraph Хранилище
-        CH_SINK --> RAW[dwh.raw_events\nTTL 90 дней]
+        CH_SINK --> RAW[dwh.raw_events<br/>TTL 90 дней]
         RAW --> MV1[marts.daily_events_summary]
         RAW --> MV2[marts.category_stats]
         RAW --> MV3[marts.brand_stats]
