@@ -1,0 +1,62 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Events Received (Vector)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(vector_component_received_events_total[1m])",
+          "legendFormat": "{{component_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Events Sent (Vector)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(vector_component_sent_events_total[1m])",
+          "legendFormat": "{{component_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Vector Errors",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(vector_component_errors_total)",
+          "legendFormat": "Total Errors"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer Lag",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(vector_kafka_consumer_lag)",
+          "legendFormat": "Lag"
+        }
+      ]
+    }
+  ],
+  "title": "Vector Pipeline Monitoring",
+  "uid": "vector-pipeline",
+  "version": 1,
+  "schemaVersion": 39
+}

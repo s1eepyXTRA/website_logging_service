@@ -1,0 +1,21 @@
+# ============================================================
+# Автоматическая загрузка дашбордов Grafana
+#
+# Grafana будет искать JSON-файлы дашбордов в указанной папке
+# и автоматически импортировать их при запуске.
+# ============================================================
+
+apiVersion: 1
+
+providers:
+  - name: "default"
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    # Как часто проверять новые/обновлённые дашборды
+    updateIntervalSeconds: 30
+    options:
+      # Путь внутри контейнера, куда мы монтируем дашборды
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,256 @@
+# ============================================================
+# Docker Compose — оркестрация всех микросервисов
+#
+# Архитектура:
+#   Generator → Kafka → Vector → ClickHouse
+#                                     ↓
+#   Prometheus + Grafana          Superset
+#        (мониторинг)            (аналитика)
+#
+# Запуск:  docker-compose up -d
+# Остановка: docker-compose down
+# Логи:    docker-compose logs -f <сервис>
+# ============================================================
+
+services:
+
+  # ============================================================
+  # KAFKA — брокер сообщений
+  # Принимает события от генератора, отдаёт их Vector'у.
+  # Используем KRaft-режим (без Zookeeper) для простоты.
+  # ============================================================
+  kafka:
+    image: bitnamilegacy/kafka:3.7
+    container_name: kafka
+    ports:
+      # Порт для подключения извне (с хост-машины)
+      - "9094:9094"
+    environment:
+      # --- KRaft режим (без Zookeeper) ---
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+
+      # --- Слушатели (listeners) ---
+      # INTERNAL — для общения между контейнерами (порт 9092)
+      # EXTERNAL — для доступа с хост-машины (порт 9094)
+      - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+
+      # --- Автоматическое создание топиков ---
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      # Количество партиций по умолчанию
+      - KAFKA_CFG_NUM_PARTITIONS=3
+    volumes:
+      # Том для хранения данных Kafka между перезапусками
+      - kafka_data:/bitnami/kafka
+    # Проверка здоровья: ждём пока Kafka будет готова
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ============================================================
+  # CLICKHOUSE — аналитическая колоночная СУБД
+  # Хранит сырые данные (DWH) и витрины (marts).
+  # ============================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse
+    ports:
+      # HTTP-интерфейс (для Vector и Superset)
+      - "8123:8123"
+      # Нативный протокол (для clickhouse-client)
+      - "9000:9000"
+    volumes:
+      # Скрипт инициализации — выполнится при первом запуске
+      - ./storage/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # Том для хранения данных ClickHouse
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      # Разрешаем подключения с любого IP (для разработки)
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ============================================================
+  # VECTOR — сборщик и маршрутизатор данных
+  # Читает из Kafka, валидирует, обогащает → пишет в ClickHouse.
+  # Также экспортирует метрики для Prometheus.
+  # ============================================================
+  vector:
+    image: timberio/vector:0.41.1-debian
+    container_name: vector
+    ports:
+      # Порт для экспорта метрик в Prometheus
+      - "9598:9598"
+    volumes:
+      # Монтируем конфиг Vector
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+    # Указываем путь к конфигу
+    command: ["--config", "/etc/vector/vector.yaml"]
+    depends_on:
+      kafka:
+        # Ждём пока Kafka станет healthy
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+
+  # ============================================================
+  # GENERATOR — генератор событий (Python)
+  # Создаёт реалистичные пользовательские события
+  # и отправляет их в Kafka.
+  # ============================================================
+  generator:
+    build:
+      # Собираем образ из директории ./generator
+      context: ./generator
+      dockerfile: Dockerfile
+    container_name: generator
+    environment:
+      # Адрес Kafka-брокера (внутри Docker-сети)
+      - KAFKA_BROKER=kafka:9092
+      # Имя топика для записи событий
+      - KAFKA_TOPIC=raw_events
+      # Базовая интенсивность: 5 событий в секунду
+      - BASE_RATE=5
+      # Сценарий: normal / peak / anomaly
+      - SCENARIO=normal
+    depends_on:
+      kafka:
+        condition: service_healthy
+    # Автоматический перезапуск при падении
+    restart: unless-stopped
+
+  # ============================================================
+  # PROMETHEUS — система мониторинга
+  # Собирает метрики с Vector и других сервисов.
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      # Web-интерфейс Prometheus
+      - "9090:9090"
+    volumes:
+      # Конфиг Prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Том для хранения метрик
+      - prometheus_data:/prometheus
+    # Флаги запуска: хранить данные 15 дней
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+
+  # ============================================================
+  # GRAFANA — визуализация мониторинга
+  # Строит графики на основе данных из Prometheus.
+  # ============================================================
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: grafana
+    ports:
+      # Web-интерфейс Grafana
+      - "3000:3000"
+    environment:
+      # Логин/пароль по умолчанию (для разработки!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Разрешаем анонимный доступ для удобства
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      # Устанавливаем плагин для ClickHouse
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    volumes:
+      # Автоматическая настройка источников данных
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Автоматическая загрузка дашбордов
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      # Том для хранения данных Grafana
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # ============================================================
+  # SUPERSET DB — PostgreSQL для метаданных Superset
+  # Superset хранит свои дашборды, датасеты, пользователей
+  # в отдельной PostgreSQL базе.
+  # ============================================================
+  superset_db:
+    image: postgres:16-alpine
+    container_name: superset_db
+    environment:
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=superset
+      - POSTGRES_DB=superset
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ============================================================
+  # SUPERSET — платформа аналитики и визуализации
+  # Подключается к ClickHouse для построения датасетов
+  # и интерактивных дашбордов.
+  # ============================================================
+  superset:
+    image: apache/superset:3.1.1
+    container_name: superset
+    ports:
+      # Web-интерфейс Superset
+      - "8088:8088"
+    environment:
+      # Путь к файлу конфигурации
+      - SUPERSET_CONFIG_PATH=/app/superset_config.py
+      - SUPERSET_SECRET_KEY=supersecret_key_change_in_production
+    volumes:
+      # Монтируем конфиг Superset
+      - ./superset/superset_config.py:/app/superset_config.py:ro
+      # Монтируем скрипт инициализации
+      - ./superset/superset-init.sh:/app/superset-init.sh:ro
+    depends_on:
+      superset_db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    # Команда: сначала инициализация, потом запуск сервера
+    command: >
+      bash -c "
+        pip install clickhouse-connect &&
+        bash /app/superset-init.sh &&
+        superset run -h 0.0.0.0 -p 8088 --with-threads
+      "
+    restart: unless-stopped
+
+# ============================================================
+# ТОМА (Volumes) — постоянное хранилище данных
+# Данные сохраняются между перезапусками контейнеров.
+# Для полной очистки: docker-compose down -v
+# ============================================================
+volumes:
+  kafka_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  superset_db_data:
+    driver: local

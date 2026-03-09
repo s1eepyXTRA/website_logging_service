@@ -1,0 +1,28 @@
+# ============================================================
+# Автоматическая настройка источников данных Grafana
+#
+# При запуске Grafana автоматически подключит эти источники,
+# не нужно настраивать вручную через UI.
+# ============================================================
+
+apiVersion: 1
+
+datasources:
+  # Prometheus — для мониторинга и метрик
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  # ClickHouse — для аналитических данных
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    jsonData:
+      host: clickhouse
+      port: 9000
+      defaultDatabase: dwh
+      protocol: native
+    editable: true

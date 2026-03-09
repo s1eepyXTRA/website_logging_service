@@ -1,0 +1,122 @@
+# ============================================================
+# Конфигурация Vector — сборщик и маршрутизатор данных
+#
+# Vector читает события из Kafka, валидирует, обогащает
+# и отправляет в ClickHouse для хранения.
+# Также экспортирует метрики для Prometheus.
+# ============================================================
+
+# --- Источники данных (откуда читаем) ---
+sources:
+  # Читаем сырые события из Kafka-топика "raw_events"
+  kafka_source:
+    type: kafka
+    bootstrap_servers: "kafka:9092"
+    group_id: "vector-collector"
+    topics:
+      - "raw_events"
+    decoding:
+      codec: json
+    # auto_offset_reset: начинаем с самых ранних сообщений
+    auto_offset_reset: earliest
+
+  # Внутренние метрики Vector (для Prometheus)
+  internal_metrics:
+    type: internal_metrics
+
+# --- Трансформации (обработка данных) ---
+transforms:
+  # 1. Валидация: отбрасываем события без обязательных полей
+  validate_events:
+    type: filter
+    inputs:
+      - kafka_source
+    condition:
+      type: vrl
+      source: |
+        # Событие должно содержать event_type, user_id и timestamp
+        exists(.event_type) && exists(.user_id) && exists(.timestamp)
+
+  # 2. Обогащение: добавляем служебные поля
+  enrich_events:
+    type: remap
+    inputs:
+      - validate_events
+    # При ошибке VRL — логируем и пропускаем событие
+    drop_on_error: true
+    source: |
+      # Добавляем время обработки Vector'ом
+      .processed_at = now()
+
+      # Нормализуем event_type в нижний регистр
+      .event_type = downcase(string!(.event_type))
+
+      # Если нет referrer — ставим "direct"
+      if !exists(.referrer) {
+        .referrer = "direct"
+      }
+
+      # Если нет device — ставим "unknown"
+      if !exists(.device) {
+        .device = "unknown"
+      }
+
+      # Убеждаемся что price — число (или 0)
+      if !exists(.price) {
+        .price = 0
+      }
+
+      # Форматируем timestamp для ClickHouse DateTime64 (без суффикса Z)
+      # Vector автоматически парсит ISO 8601 из JSON в тип timestamp,
+      # поэтому используем format_timestamp для конвертации обратно в строку
+      .timestamp = format_timestamp!(.timestamp, format: "%Y-%m-%d %H:%M:%S%.3f")
+      .processed_at = format_timestamp!(now(), format: "%Y-%m-%d %H:%M:%S%.3f")
+
+      # Удаляем служебные поля Kafka, которых нет в таблице ClickHouse
+      del(.headers)
+      del(.message_key)
+      del(.offset)
+      del(.partition)
+      del(.source_type)
+      del(.topic)
+
+# --- Приёмники данных (куда отправляем) ---
+sinks:
+  # Основной приёмник — ClickHouse (через HTTP-интерфейс)
+  clickhouse_sink:
+    type: http
+    inputs:
+      - enrich_events
+    uri: "http://clickhouse:8123/?query=INSERT%20INTO%20dwh.raw_events%20FORMAT%20JSONEachRow&input_format_skip_unknown_fields=1"
+    method: post
+    encoding:
+      # JSON — каждое событие как отдельная JSON-строка (JSONEachRow для ClickHouse)
+      codec: json
+    # Буферизация: отправляем пачками для производительности
+    batch:
+      max_bytes: 1048576     # 1 MB
+      timeout_secs: 5        # или каждые 5 секунд
+    # Retry-политика при ошибках
+    request:
+      retry_initial_backoff_secs: 1
+      retry_max_duration_secs: 30
+
+  # Вывод в консоль для отладки (первые N событий)
+  console_debug:
+    type: console
+    inputs:
+      - enrich_events
+    encoding:
+      codec: json
+    # Ограничиваем вывод — только для дебага
+    acknowledgements:
+      enabled: false
+
+  # Экспорт внутренних метрик Vector для Prometheus
+  # prometheus_exporter как sink требует inputs от внутренних метрик
+  # Используем отдельный source для метрик
+  prometheus_exporter:
+    type: prometheus_exporter
+    inputs:
+      - internal_metrics
+    address: "0.0.0.0:9598"

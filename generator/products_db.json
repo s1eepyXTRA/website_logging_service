@@ -1,0 +1,60 @@
+{
+  "categories": [
+    {
+      "id": "cat_outerwear",
+      "name": "Верхняя одежда",
+      "products": [
+        {"id": "prod_001", "name": "Пуховик зимний", "brand": "Arctic Fox", "price": 12500, "url": "/catalog/outerwear/prod_001"},
+        {"id": "prod_002", "name": "Куртка демисезонная", "brand": "Urban Style", "price": 8900, "url": "/catalog/outerwear/prod_002"},
+        {"id": "prod_003", "name": "Пальто классическое", "brand": "Elegance", "price": 15000, "url": "/catalog/outerwear/prod_003"},
+        {"id": "prod_004", "name": "Ветровка спортивная", "brand": "SportLine", "price": 4500, "url": "/catalog/outerwear/prod_004"},
+        {"id": "prod_005", "name": "Тренч весенний", "brand": "Elegance", "price": 11000, "url": "/catalog/outerwear/prod_005"}
+      ]
+    },
+    {
+      "id": "cat_tops",
+      "name": "Верх",
+      "products": [
+        {"id": "prod_010", "name": "Футболка базовая", "brand": "BasicWear", "price": 1200, "url": "/catalog/tops/prod_010"},
+        {"id": "prod_011", "name": "Рубашка офисная", "brand": "Elegance", "price": 3500, "url": "/catalog/tops/prod_011"},
+        {"id": "prod_012", "name": "Свитер вязаный", "brand": "CozyKnit", "price": 4200, "url": "/catalog/tops/prod_012"},
+        {"id": "prod_013", "name": "Худи оверсайз", "brand": "Urban Style", "price": 3800, "url": "/catalog/tops/prod_013"},
+        {"id": "prod_014", "name": "Поло классическое", "brand": "BasicWear", "price": 2200, "url": "/catalog/tops/prod_014"},
+        {"id": "prod_015", "name": "Блузка шёлковая", "brand": "Elegance", "price": 5500, "url": "/catalog/tops/prod_015"}
+      ]
+    },
+    {
+      "id": "cat_bottoms",
+      "name": "Низ",
+      "products": [
+        {"id": "prod_020", "name": "Джинсы прямые", "brand": "DenimCo", "price": 4500, "url": "/catalog/bottoms/prod_020"},
+        {"id": "prod_021", "name": "Брюки классические", "brand": "Elegance", "price": 5200, "url": "/catalog/bottoms/prod_021"},
+        {"id": "prod_022", "name": "Шорты летние", "brand": "BasicWear", "price": 1800, "url": "/catalog/bottoms/prod_022"},
+        {"id": "prod_023", "name": "Юбка миди", "brand": "Elegance", "price": 3900, "url": "/catalog/bottoms/prod_023"},
+        {"id": "prod_024", "name": "Джоггеры", "brand": "SportLine", "price": 3200, "url": "/catalog/bottoms/prod_024"}
+      ]
+    },
+    {
+      "id": "cat_shoes",
+      "name": "Обувь",
+      "products": [
+        {"id": "prod_030", "name": "Кроссовки беговые", "brand": "SportLine", "price": 7800, "url": "/catalog/shoes/prod_030"},
+        {"id": "prod_031", "name": "Ботинки зимние", "brand": "Arctic Fox", "price": 9500, "url": "/catalog/shoes/prod_031"},
+        {"id": "prod_032", "name": "Туфли классические", "brand": "Elegance", "price": 8200, "url": "/catalog/shoes/prod_032"},
+        {"id": "prod_033", "name": "Кеды повседневные", "brand": "Urban Style", "price": 4500, "url": "/catalog/shoes/prod_033"},
+        {"id": "prod_034", "name": "Сандалии летние", "brand": "BasicWear", "price": 2800, "url": "/catalog/shoes/prod_034"}
+      ]
+    },
+    {
+      "id": "cat_accessories",
+      "name": "Аксессуары",
+      "products": [
+        {"id": "prod_040", "name": "Шарф кашемировый", "brand": "CozyKnit", "price": 3500, "url": "/catalog/accessories/prod_040"},
+        {"id": "prod_041", "name": "Ремень кожаный", "brand": "Elegance", "price": 2800, "url": "/catalog/accessories/prod_041"},
+        {"id": "prod_042", "name": "Шапка вязаная", "brand": "CozyKnit", "price": 1500, "url": "/catalog/accessories/prod_042"},
+        {"id": "prod_043", "name": "Сумка городская", "brand": "Urban Style", "price": 6500, "url": "/catalog/accessories/prod_043"},
+        {"id": "prod_044", "name": "Перчатки зимние", "brand": "Arctic Fox", "price": 2200, "url": "/catalog/accessories/prod_044"}
+      ]
+    }
+  ]
+}
