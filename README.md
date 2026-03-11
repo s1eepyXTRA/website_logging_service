@@ -292,10 +292,4 @@ docker compose up -d --scale generator=2
 
 ## Безопасность
 
-> Проект настроен для локальной разработки. Для production-окружения необходимо:
-
-- Сменить `SUPERSET_SECRET_KEY` в `.env`
-- Заменить стандартные пароли Grafana и Superset
-- Настроить TLS для всех endpoint'ов
-- Ограничить сетевой доступ к Kafka и ClickHouse
-- Отключить анонимный доступ в Grafana (`GF_AUTH_ANONYMOUS_ENABLED=false`)
+> Проект настроен для локальной разработки
